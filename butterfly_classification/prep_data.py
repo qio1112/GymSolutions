@@ -3,17 +3,23 @@ from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 
 
-def load_data(data_path, batch_size=32, shuffle=False):
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
-        transforms.RandomRotation(degrees=10),
-        transforms.ToTensor()
-    ])
+def load_data(data_path, batch_size=32, for_train=False):
+    if for_train:
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomVerticalFlip(p=0.5),
+            transforms.RandomRotation(degrees=10),
+            transforms.ToTensor()
+        ])
+    else:
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor()
+        ])
 
     dataset = ImageFolder(data_path, transform=transform)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=for_train)
     return dataset, data_loader
 
 
