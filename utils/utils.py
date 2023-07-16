@@ -52,10 +52,22 @@ def save_model(base_path, model, name, config, reward_history):
         print(f"Save reward history to path: {reward_history_path}")
 
 
-def draw_train_test_loss_history(train_loss, test_loss):
-    plt.plot(train_loss, "train loss")
-    plt.plot(test_loss, "test loss")
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend()
+def draw_loss_accuracy_history(train_loss, test_loss, train_acc, test_acc):
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    ax1.plot(train_loss, label="train-loss")
+    ax1.plot(test_loss, label="test-loss")
+    ax1.set_xlabel("Epochs")
+    ax1.set_ylabel("Loss")
+    ax1.set_title("Loss")
+    ax1.legend()
+
+    ax2.plot(train_acc, label="train-accuracy")
+    ax2.plot(test_acc, label="test-accuracy")
+    ax2.set_xlabel("Epochs")
+    ax2.set_ylabel("Accuracy")
+    ax2.set_title("Accuracy")
+    ax2.legend()
+
+    plt.tight_layout()
     plt.show()
