@@ -16,53 +16,61 @@ def validate(model, data_loader, criterion):
 
     with torch.no_grad():
         for images, labels in data_loader:
-            images.to(device)
-            labels.to(device)
-
+            images = images.to(device)
+            labels = labels.to(device)
             outputs = model(images)
             loss = criterion(outputs, labels)
-            total_loss += loss
+            total_loss += loss.item()
 
             _, predicted = torch.max(outputs, 1)
             total_correct += (predicted == labels).sum().item()
-            total_samples += labels.size(0)
+            total_samples += len(images)
 
     model.train()
     return total_loss, total_correct, total_samples
 
 
-def train(train_data_loader, test_data_loader, num_classes=100, num_epochs=10):
+def train(model, train_data_loader, test_data_loader, num_epochs=10):
 
     print("start training")
     lr = 0.001
 
-    model = CNNModel(num_classes)
-    model.to(device)
+    model = model.to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 
     train_loss_history = []
     test_loss_history = []
     for epoch in range(num_epochs):
         train_loss = 0
+        train_total_correct = 0
+        train_batch_count = 0
         for i, (images, labels) in enumerate(train_data_loader):
-            print(f"epoch {epoch}/{num_epochs}, batch {i}/{len(train_data_loader)}")
+            train_batch_count += 1
             images = images.to(device)
             labels = labels.to(device)
 
             outputs = model(images)
             loss = criterion(outputs, labels)
-
+            _, train_prediction = torch.max(outputs, 1)
+            num_train_correct = (train_prediction == labels).sum().item()
+            train_total_correct += num_train_correct
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
-
+            if i % (len(train_data_loader) // 5) == 0:
+                print(f"epoch {epoch+1}/{num_epochs}, batch {i+1}/{len(train_data_loader)}")
+        train_loss = train_loss / train_batch_count
         train_loss_history.append(train_loss)
-        test_loss = validate(model, test_data_loader, criterion)
+        train_accuracy = train_total_correct / len(train_data_loader.dataset)
+
+        test_loss, test_correct, test_total = validate(model, test_data_loader, criterion)
+        test_accuracy = test_correct/test_total
         test_loss_history.append(test_loss)
-        print(f"Epoch [{epoch + 1}/{num_epochs}], Train_Loss: {train_loss:.4f}, Test_Loss: {test_loss:.4f}")
+        print(f"Epoch [{epoch + 1}/{num_epochs}], Train_Loss: {train_loss:.4f}, Train_Accuracy: {train_accuracy:.4f}, Test_Loss: {test_loss:.4f}, Test_Accuracy: {test_accuracy:.4f}")
 
     return model, train_loss_history, test_loss_history, criterion
 
