@@ -121,5 +121,5 @@ if __name__ == "__main__":
     reward_history = train_agent(env, agent, config)
 
     will_save = True
-    if save_model:
-        save_model(os.getcwd(), agent.q_network, 'dqn', config, reward_history)
+    if will_save:
+        save_model(os.getcwd(), agent.q_network, 'dqn', config, {'reward': reward_history})

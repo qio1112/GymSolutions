@@ -155,5 +155,5 @@ if __name__ == "__main__":
     reward_history = train_agent(env, agent, config)
 
     will_save = True
-    if save_model:
-        save_model(os.getcwd(), agent.q_network, 'fixed_target_replay_learning_batched', config, reward_history)
+    if will_save:
+        save_model(os.getcwd(), agent.q_network, 'fixed_target_replay_learning_batched', config, {'reward': reward_history})

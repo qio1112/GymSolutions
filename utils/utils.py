@@ -26,33 +26,40 @@ def draw_reward_history(rewards):
     plt.pause(0.1)
 
 
-def save_model(base_path, model, name, config, reward_history):
+def save_model(base_path, model, name, config, history, save_fig):
     ts = str(datetime.datetime.now().timestamp()).split('.')[0]
     dir_name = ts + '_' + name
-    os.mkdir(os.path.join(base_path, dir_name))
+    path = os.path.join(base_path, dir_name)
+    os.mkdir(path)
     # save fig
-    reward_fig_path = os.path.join(base_path, dir_name, 'reward_history.svg')
-    plt.savefig(reward_fig_path)
-    print(f"Save rewards figure to path: {reward_fig_path}")
+    if save_fig:
+        fig_path = os.path.join(path, 'history.svg')
+        plt.savefig(fig_path)
+        print(f"Save figure to path: {fig_path}")
     # save model
-    model_path = os.path.join(base_path, dir_name, 'model.pt')
+    model_path = os.path.join(path, 'model.pt')
     torch.save(model.state_dict(), model_path)
     print(f"Save model to path: {model_path}")
     # save config
-    config_path = os.path.join(base_path, dir_name, 'config.txt')
-    json_str = json.dumps(config)
-    with open(config_path, 'w') as f:
-        f.write(json_str)
-        print(f"Save config to path: {config_path}")
+    if config:
+        config_path = os.path.join(path, 'config.txt')
+        json_str = json.dumps(config)
+        with open(config_path, 'w') as f:
+            f.write(json_str)
+            print(f"Save config to path: {config_path}")
     # save reward history
-    reward_history_path = os.path.join(base_path, dir_name, 'reward_history.txt')
-    with open(reward_history_path, 'w') as file:
-        for r in reward_history:
-            file.write(str(r) + '\n')
-        print(f"Save reward history to path: {reward_history_path}")
+    if history:
+        for name, data in history.items():
+            filename = name + '.txt'
+            history_path = os.path.join(path, filename)
+            with open(history_path, 'w') as file:
+                for r in data:
+                    file.write(str(r) + '\n')
+                print(f"Save {name} to path: {history_path}")
+    return path
 
 
-def draw_loss_accuracy_history(train_loss, test_loss, train_acc, test_acc):
+def draw_loss_accuracy_history(train_loss, test_loss, train_acc, test_acc, save_path=None):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     ax1.plot(train_loss, label="train-loss")
@@ -70,4 +77,6 @@ def draw_loss_accuracy_history(train_loss, test_loss, train_acc, test_acc):
     ax2.legend()
 
     plt.tight_layout()
+    if save_path:
+        plt.savefig(os.path.join(save_path, "loss_accuracy.png"))
     plt.show()
