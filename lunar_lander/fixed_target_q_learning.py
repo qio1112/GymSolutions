@@ -25,18 +25,19 @@ class QNetwork(nn.Module):
 
 # Define the agent
 class QAgent:
-    def __init__(self, state_size, action_size):
+    def __init__(self, state_size, action_size, device):
         self.state_size = state_size
         self.action_size = action_size
-        self.q_network = QNetwork(state_size, action_size)
-        self.target_network = QNetwork(state_size, action_size)
+        self.q_network = QNetwork(state_size, action_size).to(device)
+        self.target_network = QNetwork(state_size, action_size).to(device)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.device = device
 
     def load_model(self, weights_path):
         if weights_path:
-            self.q_network.load_state_dict(torch.load(weights_path))
-            self.target_network.load_state_dict(torch.load(weights_path))
-            print(f"Load model from {weights_path}")
+            self.q_network.load_state_dict(torch.load(weights_path)).to(device)
+            self.target_network.load_state_dict(torch.load(weights_path)).to(device)
+            print(f"Load model from {weights_path} to device {device}")
 
     def update_target_network(self):
         self.target_network.load_state_dict(self.q_network.state_dict())
@@ -45,16 +46,16 @@ class QAgent:
         if np.random.rand() <= epsilon:
             return np.random.randint(self.action_size)
         else:
-            state = torch.tensor(state, dtype=torch.float).unsqueeze(0)
+            state = torch.tensor(state, dtype=torch.float).unsqueeze(0).to(self.device)
             q_values = self.q_network(state)
             return torch.argmax(q_values, dim=1).item()
 
     def train(self, state, action, reward, next_state, done, gamma):
-        state = torch.tensor(state, dtype=torch.float).unsqueeze(0)
-        next_state = torch.tensor(next_state, dtype=torch.float).unsqueeze(0)
-        action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
-        reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0)
-        done = torch.tensor(done, dtype=torch.float).unsqueeze(0)
+        state = torch.tensor(state, dtype=torch.float).unsqueeze(0).to(self.device)
+        next_state = torch.tensor(next_state, dtype=torch.float).unsqueeze(0).to(self.device)
+        action = torch.tensor(action, dtype=torch.long).unsqueeze(0).to(self.device)
+        reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0).to(self.device)
+        done = torch.tensor(done, dtype=torch.float).unsqueeze(0).to(self.device)
 
         q_values = self.q_network(state)[0]
         next_q_values = self.target_network(next_state)  # fixed target
@@ -143,8 +144,11 @@ if __name__ == "__main__":
 
     load_model_path = ''
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+
     # Create the agent
-    agent = QAgent(state_size, action_size)
+    agent = QAgent(state_size, action_size, device)
     agent.load_model(load_model_path)
 
     # Train the agent
