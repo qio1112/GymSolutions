@@ -50,19 +50,19 @@ class QAgent:
             return torch.argmax(q_values, dim=1).item()
 
     def train(self, state, action, reward, next_state, done, gamma):
-        state = torch.tensor(state, dtype=torch.float).unsqueeze(0)
-        next_state = torch.tensor(next_state, dtype=torch.float).unsqueeze(0)
-        action = torch.tensor(action, dtype=torch.long).unsqueeze(0)
-        reward = torch.tensor(reward, dtype=torch.float).unsqueeze(0)
-        done = torch.tensor(done, dtype=torch.float).unsqueeze(0)
+        state = torch.tensor(state, dtype=torch.float)  # (batch_size, num_states)
+        next_state = torch.tensor(next_state, dtype=torch.float) # (batch_size, num_states)
+        action = torch.tensor(action, dtype=torch.long)  # (batch_size, )
+        reward = torch.tensor(reward, dtype=torch.float)  # (batch_size, )
+        done = torch.tensor(done, dtype=torch.float)  # (batch_size, )
 
-        q_values = self.q_network(state)[0]
-        next_q_values = self.target_network(next_state)  # fixed target
-        next_q_value = torch.max(next_q_values)
+        q_values = self.q_network(state)  # (batch_size, num_actions)
+        next_q_values = self.target_network(next_state)  # fixed target (batch_size, num_actions)
+        next_q_value = torch.max(next_q_values, dim=1).values  # (batch_size, )
         target_q = reward + (1 - done) * gamma * next_q_value
 
-        q_value = q_values[action]
-        loss = nn.MSELoss()(q_value, target_q.detach())
+        q_value = q_values[torch.arange(q_values.shape[0]), action] # (batch_size, )
+        loss = nn.MSELoss()(q_value, target_q.detach()) # (batch_size, )
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -72,9 +72,12 @@ class QAgent:
 # Define the training loop
 def train_agent(env, agent, config):
     epsilon = config['epsilon_start']
+    batch_size = config['batch_size']
+    if not batch_size:
+        batch_size = 1
+    batch_count = 0
     reward_history = []
     buffer = deque(maxlen=30000)
-    batch = []
     steps = 0
 
     for i, episode in enumerate(range(config['episodes'])):
@@ -83,12 +86,22 @@ def train_agent(env, agent, config):
 
         for step in range(config['max_steps']):
             steps += 1
+            batch_count += 1
             action = agent.get_action(state, epsilon)
             next_state, reward, done, *_ = env.step(action)
             buffer.append((state, action, reward, next_state, done))
-            batch.append((state, action, reward, next_state, done))
+
             # TD method, train for each step
-            agent.train(state, action, reward, next_state, done, config['gamma'])
+            if batch_count == batch_size:
+                batch_count = 0
+                batch_data = list(buffer)[-50:]
+                agent.train([t[0] for t in batch_data],
+                            [t[1] for t in batch_data],
+                            [t[2] for t in batch_data],
+                            [t[3] for t in batch_data],
+                            [t[4] for t in batch_data],
+                            config['gamma'])
+
             state = next_state
             total_reward += reward
 
@@ -118,9 +131,14 @@ def train_agent(env, agent, config):
 
         # experience replay for every 25 episodes
         if config['experience_replay'] and i > 50 and i % 25 == 0:
+            replay_size = config['experience_replay_size']
             selected_exp = random.sample(buffer, k=300)
-            for exp in selected_exp:
-                agent.train(exp[0], exp[1], exp[2], exp[3], exp[4], config['gamma'])
+            agent.train([t[0] for t in selected_exp],
+                        [t[1] for t in selected_exp],
+                        [t[2] for t in selected_exp],
+                        [t[3] for t in selected_exp],
+                        [t[4] for t in selected_exp],
+                        config['gamma'])
             agent.update_target_network()
             print(f"Experience Replayed")
     return reward_history
@@ -143,7 +161,8 @@ if __name__ == "__main__":
               'update_target_steps': 1,
               'terminate_at_reward_ma50': 220,
               'experience_replay': True,
-              'batch_size': 64}
+              'experience_replay_size': 3000,
+              'batch_size': 8}
 
     load_model_path = ''
 
