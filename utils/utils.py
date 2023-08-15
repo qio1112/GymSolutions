@@ -26,7 +26,7 @@ def draw_reward_history(rewards):
     plt.pause(0.1)
 
 
-def save_model(base_path, model, name, config, history, save_fig):
+def save_model(base_path, model, name, config, history, save_fig=True):
     ts = str(datetime.datetime.now().timestamp()).split('.')[0]
     dir_name = ts + '_' + name
     path = os.path.join(base_path, dir_name)
