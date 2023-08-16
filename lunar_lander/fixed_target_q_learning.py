@@ -70,90 +70,90 @@ class QAgent:
         self.optimizer.step()
 
 
-# Define the training loop
-def train_agent(env, agent, config):
-    epsilon = config['epsilon_start']
-    reward_history = []
-    buffer = deque(maxlen=3000)
-    steps = 0
-    for i, episode in enumerate(range(config['episodes'])):
-        state = env.reset()[0]
-        total_reward = 0
-
-        for step in range(config['max_steps']):
-            steps += 1
-            action = agent.get_action(state, epsilon)
-            next_state, reward, done, *_ = env.step(action)
-            buffer.append((state, action, reward, next_state, done))
-            # TD method, train for each step
-            agent.train(state, action, reward, next_state, done, config['gamma'])
-            state = next_state
-            total_reward += reward
-
-            # update target network
-            if config['update_target_steps'] and steps % config['update_target_steps'] == 0:
-                agent.update_target_network()
-
-            if done:
-                break
-
-        reward_history.append(total_reward)
-
-        ma50 = sum(reward_history[-50:]) / 50
-        if len(reward_history) % 10 == 0 or len(reward_history) >= config['episodes']-10:
-            draw_reward_history(reward_history)
-        # reduce the e-greedy epsilon by num of episodes
-        epsilon = max(config['epsilon_end'], epsilon * config['epsilon_decay'])
-        print("Episode: {}, Total Reward: {}, MA50: {}".format(episode + 1, total_reward, ma50))
-
-        # terminate training if ma50 is larger than terminate_at_reward_ma50
-        if len(reward_history) > 50 and \
-                config['terminate_at_reward_ma50'] and \
-                ma50 > config['terminate_at_reward_ma50']:
-            draw_reward_history(reward_history)
-            print(f"Terminating training with ma50={ma50}")
-            break
-
-        # experience replay for every 25 episodes
-        if config['experience_replay'] and i > 50 and i % 25 == 0:
-            selected_exp = random.sample(buffer, k=300)
-            for exp in selected_exp:
-                agent.train(exp[0], exp[1], exp[2], exp[3], exp[4], config['gamma'])
-            agent.update_target_network()
-            print(f"Experience Replayed")
-    return reward_history
-
-
-if __name__ == "__main__":
-    # Create the LunarLander environment
-    env = gym.make('LunarLander-v2')
-    # env = gym.make('LunarLander-v2', render_mode="human")
-
-    # Set hyperparameters
-    state_size = env.observation_space.shape[0]
-    action_size = env.action_space.n
-    config = {'episodes': 3000,
-              'max_steps': 1000,
-              'epsilon_start': 1,
-              'epsilon_end': 0.01,
-              'epsilon_decay': 0.996,
-              'gamma': 0.99,
-              'update_target_steps': 1,
-              'terminate_at_reward_ma50': 220,
-              'experience_replay': True}
-
-    load_model_path = ''
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
-
-    # Create the agent
-    agent = QAgent(state_size, action_size, device)
-    agent.load_model(load_model_path)
-
-    # Train the agent
-    reward_history = train_agent(env, agent, config)
-
-    will_save = True
-    if will_save:
-        save_model(os.getcwd(), agent.q_network, 'fixed_target_replay_learning', config, {'reward': reward_history})
+# # Define the training loop
+# def train_agent(env, agent, config):
+#     epsilon = config['epsilon_start']
+#     reward_history = []
+#     buffer = deque(maxlen=3000)
+#     steps = 0
+#     for i, episode in enumerate(range(config['episodes'])):
+#         state = env.reset()[0]
+#         total_reward = 0
+#
+#         for step in range(config['max_steps']):
+#             steps += 1
+#             action = agent.get_action(state, epsilon)
+#             next_state, reward, done, *_ = env.step(action)
+#             buffer.append((state, action, reward, next_state, done))
+#             # TD method, train for each step
+#             agent.train(state, action, reward, next_state, done, config['gamma'])
+#             state = next_state
+#             total_reward += reward
+#
+#             # update target network
+#             if config['update_target_steps'] and steps % config['update_target_steps'] == 0:
+#                 agent.update_target_network()
+#
+#             if done:
+#                 break
+#
+#         reward_history.append(total_reward)
+#
+#         ma50 = sum(reward_history[-50:]) / 50
+#         if len(reward_history) % 10 == 0 or len(reward_history) >= config['episodes']-10:
+#             draw_reward_history(reward_history)
+#         # reduce the e-greedy epsilon by num of episodes
+#         epsilon = max(config['epsilon_end'], epsilon * config['epsilon_decay'])
+#         print("Episode: {}, Total Reward: {}, MA50: {}".format(episode + 1, total_reward, ma50))
+#
+#         # terminate training if ma50 is larger than terminate_at_reward_ma50
+#         if len(reward_history) > 50 and \
+#                 config['terminate_at_reward_ma50'] and \
+#                 ma50 > config['terminate_at_reward_ma50']:
+#             draw_reward_history(reward_history)
+#             print(f"Terminating training with ma50={ma50}")
+#             break
+#
+#         # experience replay for every 25 episodes
+#         if config['experience_replay'] and i > 50 and i % 25 == 0:
+#             selected_exp = random.sample(buffer, k=300)
+#             for exp in selected_exp:
+#                 agent.train(exp[0], exp[1], exp[2], exp[3], exp[4], config['gamma'])
+#             agent.update_target_network()
+#             print(f"Experience Replayed")
+#     return reward_history
+#
+#
+# if __name__ == "__main__":
+#     # Create the LunarLander environment
+#     env = gym.make('LunarLander-v2')
+#     # env = gym.make('LunarLander-v2', render_mode="human")
+#
+#     # Set hyperparameters
+#     state_size = env.observation_space.shape[0]
+#     action_size = env.action_space.n
+#     config = {'episodes': 3000,
+#               'max_steps': 1000,
+#               'epsilon_start': 1,
+#               'epsilon_end': 0.01,
+#               'epsilon_decay': 0.996,
+#               'gamma': 0.99,
+#               'update_target_steps': 1,
+#               'terminate_at_reward_ma50': 220,
+#               'experience_replay': True}
+#
+#     load_model_path = ''
+#
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     print(f"Device: {device}")
+#
+#     # Create the agent
+#     agent = QAgent(state_size, action_size, device)
+#     agent.load_model(load_model_path)
+#
+#     # Train the agent
+#     reward_history = train_agent(env, agent, config)
+#
+#     will_save = True
+#     if will_save:
+#         save_model(os.getcwd(), agent.q_network, 'fixed_target_replay_learning', config, {'reward': reward_history})

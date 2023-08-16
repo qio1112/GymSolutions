@@ -8,8 +8,8 @@ class QAgent:
 
     def __init__(self, action_size, network, device):
         self.action_size = action_size
-        self.q_network = network(action_size)
-        self.target_network = network(action_size)
+        self.q_network = network(action_size).to(device)
+        self.target_network = network(action_size).to(device)
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=0.001)
         self.device = device
 
@@ -26,7 +26,7 @@ class QAgent:
         if np.random.rand() <= epsilon:
             return np.random.randint(self.action_size)
         else:
-            state = torch.tensor(input_image, dtype=torch.float).unsqueeze(0).permute(0, 3, 1, 2)
+            state = torch.tensor(input_image, dtype=torch.float).to(self.device).unsqueeze(0).permute(0, 3, 1, 2)
             q_values = self.q_network(state)
             return torch.argmax(q_values, dim=1).item()
 
