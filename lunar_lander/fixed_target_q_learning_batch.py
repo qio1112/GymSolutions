@@ -9,6 +9,7 @@ import numpy as np
 from utils.utils import save_model, draw_reward_history
 from utils.rl_trainer import train_agent
 import os
+import datetime
 
 
 # Define the Q-network
@@ -82,7 +83,15 @@ if __name__ == "__main__":
     # Set hyperparameters
     state_size = env.observation_space.shape[0]
     action_size = env.action_space.n
-    config = {'episodes': 1,
+
+    base_path = os.getcwd()
+    ts = str(datetime.datetime.now().timestamp()).split('.')[0]
+    name = ts + "_fixed_target_replay_learning_batched"
+    path = os.path.join(base_path, name)
+
+    config = {
+              'path': path,
+              'episodes': 3000,
               'max_steps': 2000,
               'epsilon_start': 1,
               'epsilon_end': 0.01,
@@ -93,7 +102,8 @@ if __name__ == "__main__":
               'buffer_size': 30000,
               'experience_replay': True,
               'experience_replay_size': 300,
-              'batch_size': 32}
+              'batch_size': 32,
+              'save_model_episode': 20}
 
     load_model_path = ''
 
@@ -106,4 +116,4 @@ if __name__ == "__main__":
 
     will_save = True
     if will_save:
-        save_model(os.getcwd(), agent.q_network, 'fixed_target_replay_learning_batched', config, {'reward': reward_history})
+        save_model(agent.q_network, config, {'reward': reward_history})

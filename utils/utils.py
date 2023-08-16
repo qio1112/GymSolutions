@@ -26,11 +26,12 @@ def draw_reward_history(rewards):
     plt.pause(0.1)
 
 
-def save_model(base_path, model, name, config, history, save_fig=True):
-    ts = str(datetime.datetime.now().timestamp()).split('.')[0]
-    dir_name = ts + '_' + name
-    path = os.path.join(base_path, dir_name)
-    os.mkdir(path)
+def save_model(model, config, history, path=None, additional_path=None, save_fig=True):
+    if not path:
+        path = config.get('path')
+    if additional_path:
+        path = os.path.join(path, additional_path)
+    os.makedirs(path, exist_ok=True)
     # save fig
     if save_fig:
         fig_path = os.path.join(path, 'history.svg')

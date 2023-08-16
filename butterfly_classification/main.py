@@ -3,6 +3,7 @@ from prep_data import train_test_valid_data
 from utils.utils import draw_loss_accuracy_history, save_model
 from model import CNNModel, CNNModel2
 import os
+import datetime
 
 if __name__ == "__main__":
     full_data = True
@@ -11,11 +12,15 @@ if __name__ == "__main__":
     num_classes = 100 if full_data else 3
 
     # put data under ./data/archive/train or ./data/reduced/train
-    path = os.getcwd()
-    root_path = os.path.join(path, "data", "archive" if full_data else "reduced")
+    base_path = os.getcwd()
+    root_path = os.path.join(base_path, "data", "archive" if full_data else "reduced")
     train_path = os.path.join(root_path, "train")
     test_path = os.path.join(root_path, "test")
     valid_path = os.path.join(root_path, "valid")
+
+    ts = str(datetime.datetime.now().timestamp()).split('.')[0]
+    name = ts + "CNNModel"
+    path = os.path.join(base_path, name)
 
     model = CNNModel2(num_classes)
     # model = CNNModel(num_classes)
@@ -42,5 +47,5 @@ if __name__ == "__main__":
         'validation_result': [valid_result]
     }
 
-    save_path = save_model(path, model, 'CNNModel', None, history, False)
+    save_path = save_model(model, None, history, path=path, save_fig=False)
     draw_loss_accuracy_history(train_loss_history, test_loss_history, train_acc, test_acc, save_path)

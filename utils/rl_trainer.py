@@ -1,6 +1,6 @@
 from collections import deque
 import random
-from utils.utils import draw_reward_history
+from utils.utils import draw_reward_history, save_model
 
 
 def train_agent(env, agent, config):
@@ -8,6 +8,7 @@ def train_agent(env, agent, config):
     batch_size = config.get('batch_size', 1)
     buffer_size = config.get('buffer_size', 30000)
     reset_options = config.get('reset_options', None)
+    save_model_episode = config.get('save_model_episode', None)
 
     batch_count = 0
     reward_history = []
@@ -64,6 +65,9 @@ def train_agent(env, agent, config):
             draw_reward_history(reward_history)
             print(f"Terminating training with ma50={ma50}")
             break
+
+        if save_model_episode and (episode+1) > save_model_episode and (episode+1) % save_model_episode == 0:
+            save_model(agent.target_network, config, {'reward': reward_history}, additional_path='epi='+str(episode+1))
 
         # experience replay for every 25 episodes
         if config['experience_replay'] and episode > 50 and episode % 25 == 0:
