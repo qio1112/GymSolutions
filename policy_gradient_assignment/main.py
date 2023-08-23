@@ -31,7 +31,9 @@ if __name__ == "__main__":
     # random.seed(args.seed)
 
     # env_name = "cartpole"
-    env_name = "LunarLander-v2"
+    # env_name = "LunarLander-v2"
+    env_name = "pendulum"
+    # env_name = "MountainCarContinuous-v0"
     use_baseline = True
     ppo = False
     seed = 1

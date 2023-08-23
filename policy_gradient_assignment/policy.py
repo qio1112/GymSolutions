@@ -129,7 +129,7 @@ class GaussianPolicy(BasePolicy, nn.Module):
         #########   YOUR CODE HERE - 2-4 lines.    ############
         mean = self.network(observations)
         std = self.std()
-        covariance_matrix = torch.diag(std)
+        covariance_matrix = torch.diag(std ** 2)
         distribution = ptd.MultivariateNormal(mean, covariance_matrix)
         #######################################################
         #########          END YOUR CODE.          ############
