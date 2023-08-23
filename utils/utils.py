@@ -6,8 +6,7 @@ import os
 import json
 
 
-def draw_reward_history(rewards):
-    window_size = 100
+def draw_reward_history(rewards, window_size=100):
     ma = np.convolve(rewards, np.ones(window_size)/window_size, mode='valid')
     plt.ion()
     plt.close()

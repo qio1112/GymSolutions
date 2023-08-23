@@ -66,8 +66,12 @@ def train_agent(env, agent, config):
             break
 
         # experience replay for every 25 episodes
-        if config['experience_replay'] and episode > 50 and episode % 25 == 0:
-            replay_size = config['experience_replay_size']
+        replay_after_episode = config.get('replay_after_episode', 50)
+        replay_every_episode = config.get('replay_every_episode', 25)
+        replay_size = config['experience_replay_size']
+        if len(buffer) >= replay_size and \
+                config['experience_replay'] and episode > replay_after_episode and \
+                episode % replay_every_episode == 0:
             selected_exp = random.sample(buffer, k=replay_size)
             agent.train([t[0] for t in selected_exp],
                         [t[1] for t in selected_exp],

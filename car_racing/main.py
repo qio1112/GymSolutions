@@ -13,24 +13,26 @@ if __name__ == "__main__":
     print(f"Device: {device}")
 
     # Create the LunarLander environment
-    # env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False, render_mode="human")
-    env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False)
+    env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False, render_mode="human")
+    # env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False)
 
     # Set parameters
     state_size = env.observation_space.shape
     action_size = env.action_space.n
-    config = {'episodes': 1000,
-              'max_steps': 2000,
-              'epsilon_start': 1,
-              'epsilon_end': 0.02,
+    config = {'episodes': 3000,
+              'max_steps': 3000,
+              'epsilon_start': 0.5,
+              'epsilon_end': 0.01,
               'epsilon_decay': 0.996,
               'gamma': 0.99,
               'update_target_steps': 200,
-              'terminate_at_reward_ma50': 230,
-              'buffer_size': 3000,
+              'terminate_at_reward_ma50': 200,
+              'buffer_size': 30000,
               'experience_replay': True,
-              'experience_replay_size': 300,
-              'batch_size': 32}
+              'experience_replay_size': 2000,
+              'replay_after_episode': 3,
+              'replay_every_episode': 1,
+              'batch_size': 64}
 
     load_model_path = ''
 
