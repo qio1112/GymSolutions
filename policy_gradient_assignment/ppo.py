@@ -7,7 +7,7 @@ import copy
 import os
 from general import get_logger, Progbar, export_plot
 from baseline_network import BaselineNetwork
-from network_utils import build_mlp, device, np2torch
+from network_utils import build_mlp, np2torch
 from policy import CategoricalPolicy, GaussianPolicy
 from policy_gradient import PolicyGradient
 
@@ -40,10 +40,10 @@ class PPO(PolicyGradient):
             - PyTorch optimizers will try to minimize the loss you compute, but you
             want to maximize the policy's performance.
         """
-        observations = np2torch(observations)
-        actions = np2torch(actions)
-        advantages = np2torch(advantages)
-        old_logprobs = np2torch(old_logprobs)
+        observations = np2torch(observations, device=self.config.device)
+        actions = np2torch(actions, device=self.config.device)
+        advantages = np2torch(advantages, device=self.config.device)
+        old_logprobs = np2torch(old_logprobs, device=self.config.device)
 
         #######################################################
         #########   YOUR CODE HERE - 10-15 lines.   ###########

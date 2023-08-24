@@ -1,8 +1,12 @@
 import torch.nn as nn
+import torch
 
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
 
 class config_cartpole:
     def __init__(self, use_baseline, ppo, seed):
+        self.device = device
         self.env_name = "CartPole-v1"
         self.record = False
         baseline_str = ("baseline" if use_baseline else "no_baseline") if not ppo else "ppo"
@@ -44,6 +48,7 @@ class config_cartpole:
 
 class config_mountain:
     def __init__(self, use_baseline, ppo, seed):
+        self.device = device
         self.env_name = "MountainCarContinuous-v0"
         self.record = False
         baseline_str = ("baseline" if use_baseline else "no_baseline") if not ppo else "ppo"
@@ -83,6 +88,7 @@ class config_mountain:
 
 class config_lunar:
     def __init__(self, use_baseline, ppo, seed):
+        self.device = device
         self.env_name = "LunarLander-v2"
         self.record = False
         baseline_str = ("baseline" if use_baseline else "no_baseline") if not ppo else "ppo"
@@ -123,6 +129,7 @@ class config_lunar:
 
 class config_pendulum:
     def __init__(self, use_baseline, ppo, seed):
+        self.device = device
         self.env_name = "Pendulum-v1"
         self.record = False
         baseline_str = ("baseline" if use_baseline else "no_baseline") if not ppo else "ppo"
@@ -141,17 +148,17 @@ class config_pendulum:
         self.summary_freq = 1
 
         # model and training config
-        self.num_batches = 400  # number of batches trained on
-        self.batch_size = 4000  # number of steps used to compute each policy update
+        self.num_batches = 500  # number of batches trained on
+        self.batch_size = 8000  # number of steps used to compute each policy update
         self.max_ep_len = 200  # maximum episode length
-        self.learning_rate = 0.01
-        self.gamma = 0.99  # the discount factor
+        self.learning_rate = 0.005
+        self.gamma = 0.996  # the discount factor
         self.use_baseline = use_baseline
         self.normalize_advantage = True
 
         # parameters for the policy and baseline models
-        self.n_layers = 2
-        self.layer_size = 128
+        self.n_layers = 3
+        self.layer_size = 96
 
         # hyperparameters for PPO
         self.eps_clip = 0.2
@@ -165,6 +172,7 @@ class config_pendulum:
 
 class config_cheetah:
     def __init__(self, use_baseline, ppo, seed):
+        self.device = device
         self.env_name = "HalfCheetahBulletEnv-v0"
         self.record = False
         baseline_str = ("baseline" if use_baseline else "no_baseline") if not ppo else "ppo"

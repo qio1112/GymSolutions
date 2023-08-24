@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.distributions as ptd
 
-from network_utils import np2torch, device
+from network_utils import np2torch
 
 
 class BasePolicy:
@@ -23,7 +23,7 @@ class BasePolicy:
         """
         raise NotImplementedError
 
-    def act(self, observations, return_log_prob = False):
+    def act(self, observations, return_log_prob = False, device="cpu"):
         """
         Args:
             observations: np.array of shape [batch size, dim(observation space)]
@@ -40,13 +40,13 @@ class BasePolicy:
         You may find the following documentation helpful:
         https://pytorch.org/docs/stable/distributions.html
         """
-        observations = np2torch(observations)
+        observations = np2torch(observations, device=device)
         #######################################################
         #########   YOUR CODE HERE - 1-4 lines.    ############
         distribution = self.action_distribution(observations)
         sampled_actions = distribution.sample((observations.shape[0],))
-        log_probs = distribution.log_prob(sampled_actions).detach().numpy()
-        sampled_actions = sampled_actions.detach().numpy()
+        log_probs = distribution.log_prob(sampled_actions).detach().cpu().numpy()
+        sampled_actions = sampled_actions.detach().cpu().numpy()
         #######################################################
         #########          END YOUR CODE.          ############
         if return_log_prob:
@@ -78,7 +78,7 @@ class CategoricalPolicy(BasePolicy, nn.Module):
 
 
 class GaussianPolicy(BasePolicy, nn.Module):
-    def __init__(self, network, action_dim):
+    def __init__(self, network, action_dim, device):
         """
         After the basic initialization, you should create a nn.Parameter of
         shape [dim(action space)] and assign it to self.log_std.
@@ -89,7 +89,7 @@ class GaussianPolicy(BasePolicy, nn.Module):
         self.network = network
         #######################################################
         #########   YOUR CODE HERE - 1 line.       ############
-        self.log_std = nn.Parameter(torch.zeros(action_dim))
+        self.log_std = nn.Parameter(torch.zeros(action_dim).to(device))
         #######################################################
         #########          END YOUR CODE.          ############
 

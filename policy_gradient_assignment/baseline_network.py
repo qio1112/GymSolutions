@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from network_utils import build_mlp, device, np2torch
+from network_utils import build_mlp, np2torch
 
 
 class BaselineNetwork(nn.Module):
@@ -26,7 +26,7 @@ class BaselineNetwork(nn.Module):
 
         #######################################################
         #########   YOUR CODE HERE - 2-8 lines.   #############
-        self.network = build_mlp(observation_dim, 1, self.config.n_layers, self.config.layer_size)
+        self.network = build_mlp(observation_dim, 1, self.config.n_layers, self.config.layer_size, self.config.device)
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.lr)
         #######################################################
         #########          END YOUR CODE.          ############
@@ -76,10 +76,10 @@ class BaselineNetwork(nn.Module):
         converts numpy arrays to torch tensors. You will have to convert the
         network output back to numpy, which can be done via the numpy() method.
         """
-        observations = np2torch(observations)
+        observations = np2torch(observations, device=self.config.device)
         #######################################################
         #########   YOUR CODE HERE - 1-4 lines.   ############
-        base_lines = self.forward(observations).detach().numpy()
+        base_lines = self.forward(observations).detach().cpu().numpy()
         advantages = returns - base_lines
         #######################################################
         #########          END YOUR CODE.          ############
@@ -98,8 +98,8 @@ class BaselineNetwork(nn.Module):
         You may find the following documentation useful:
         https://pytorch.org/docs/stable/nn.functional.html
         """
-        returns = np2torch(returns)
-        observations = np2torch(observations)
+        returns = np2torch(returns, device=self.config.device)
+        observations = np2torch(observations, device=self.config.device)
         #######################################################
         #########   YOUR CODE HERE - 4-10 lines.  #############
         loss = torch.nn.MSELoss()(returns, self.forward(observations))

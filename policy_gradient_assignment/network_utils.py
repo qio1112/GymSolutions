@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-def build_mlp(input_size, output_size, n_layers, size):
+def build_mlp(input_size, output_size, n_layers, size, device):
     """
     Args:
         input_size: int, the dimension of inputs to be given to the network
@@ -37,16 +37,13 @@ def build_mlp(input_size, output_size, n_layers, size):
     out_layer = nn.Linear(size, output_size)
     layers.append(out_layer)
 
-    return nn.Sequential(*layers)
+    return nn.Sequential(*layers).to(device)
 
     #######################################################
     #########          END YOUR CODE.          ############
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def np2torch(x, cast_double_to_float=True):
+def np2torch(x, cast_double_to_float=True, device="cpu"):
     """
     Utility function that accepts a numpy array and does the following:
         1. Convert to torch tensor

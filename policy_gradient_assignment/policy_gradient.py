@@ -4,7 +4,7 @@ import gymnasium as gym
 import os
 from general import get_logger, Progbar, export_plot
 from baseline_network import BaselineNetwork
-from network_utils import build_mlp, device, np2torch
+from network_utils import build_mlp, np2torch
 from policy import CategoricalPolicy, GaussianPolicy
 
 
@@ -72,11 +72,11 @@ class PolicyGradient(object):
         """
         #######################################################
         #########   YOUR CODE HERE - 8-12 lines.   ############
-        self.network = build_mlp(self.observation_dim, self.action_dim, self.config.n_layers, self.config.layer_size)
+        self.network = build_mlp(self.observation_dim, self.action_dim, self.config.n_layers, self.config.layer_size, self.config.device)
         if self.discrete:
             self.policy = CategoricalPolicy(self.network)
         else:
-            self.policy = GaussianPolicy(self.network, self.action_dim)
+            self.policy = GaussianPolicy(self.network, self.action_dim, self.config.device)
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.lr)
         #######################################################
         #########          END YOUR CODE.          ############
@@ -143,7 +143,7 @@ class PolicyGradient(object):
 
             for step in range(self.config.max_ep_len):
                 states.append(state)
-                action = self.policy.act(states[-1])[0]
+                action = self.policy.act(states[-1], device=self.config.device)[0]
                 state, reward, done, _, info = env.step(action)
                 actions.append(action)
                 rewards.append(reward)
@@ -272,9 +272,9 @@ class PolicyGradient(object):
         PyTorch optimizers will try to minimize the loss you compute, but you
         want to maximize the policy's performance.
         """
-        observations = np2torch(observations)
-        actions = np2torch(actions)
-        advantages = np2torch(advantages)
+        observations = np2torch(observations, device=self.config.device)
+        actions = np2torch(actions, device=self.config.device)
+        advantages = np2torch(advantages, device=self.config.device)
         #######################################################
         #########   YOUR CODE HERE - 5-7 lines.    ############
         action_distribution = self.policy.action_distribution(observations)
