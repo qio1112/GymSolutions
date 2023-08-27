@@ -6,7 +6,7 @@ import os
 import json
 
 
-def draw_reward_history(rewards, window_size=100):
+def draw_reward_history(rewards, window_size=100, block=False):
     ma = np.convolve(rewards, np.ones(window_size)/window_size, mode='valid')
     plt.ion()
     plt.close()
@@ -21,8 +21,9 @@ def draw_reward_history(rewards, window_size=100):
     plt.title('Reward History')
     plt.grid(True)
     plt.legend()
-    plt.show(block=False)
-    plt.pause(0.1)
+    if not block:
+        plt.show(block=False)
+        plt.pause(0.1)
 
 
 def save_model(model, config, history, path=None, additional_path=None, save_fig=True):
@@ -33,7 +34,7 @@ def save_model(model, config, history, path=None, additional_path=None, save_fig
     os.makedirs(path, exist_ok=True)
     # save fig
     if save_fig:
-        fig_path = os.path.join(path, 'history.svg')
+        fig_path = os.path.join(path, 'history.png')
         plt.savefig(fig_path)
         print(f"Save figure to path: {fig_path}")
     # save model

@@ -2,9 +2,8 @@ import torch
 import gymnasium as gym
 import os
 from utils.utils import save_model
-from agent import QAgent
+from rl_agent.QAgent import QAgentCNN
 from model import QNetworkCNN1
-from utils.rl_trainer import train_agent
 import datetime
 
 
@@ -43,11 +42,11 @@ if __name__ == "__main__":
     load_model_path = ''
 
     # Create the agent
-    agent = QAgent(action_size, QNetworkCNN1, device)
+    agent = QAgentCNN(config, action_size, device, env, QAgentCNN)
     agent.load_model(load_model_path)
 
     # Train the agent
-    reward_history = train_agent(env, agent, config)
+    reward_history = agent.train()
 
     will_save = True
     if will_save:
