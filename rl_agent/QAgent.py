@@ -13,6 +13,9 @@ class QAgent:
         self.env = env
         self.state_size = state_size
         self.action_size = action_size
+        self.init_network(state_size, action_size, QNetwork, device)
+
+    def init_network(self, state_size, action_size, QNetwork, device):
         self.q_network = QNetwork(state_size, action_size)
         self.target_network = QNetwork(state_size, action_size)
         self.optimizer = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
@@ -144,11 +147,11 @@ class QAgentCNN(QAgent):
 
     def __init__(self, config, action_size, device, env, QNetwork):
         super().__init__(config, env, None, action_size, QNetwork, device)
-        self.action_size = action_size
+
+    def init_network(self, state_size, action_size, QNetwork, device):
         self.q_network = QNetwork(action_size).to(device)
         self.target_network = QNetwork(action_size).to(device)
         self.optimizer = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
-        self.device = device
 
     def get_action(self, input_image, epsilon):
         if np.random.rand() <= epsilon:

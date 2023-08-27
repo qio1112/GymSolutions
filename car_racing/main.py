@@ -42,7 +42,7 @@ if __name__ == "__main__":
     load_model_path = ''
 
     # Create the agent
-    agent = QAgentCNN(config, action_size, device, env, QAgentCNN)
+    agent = QAgentCNN(config, action_size, device, env, QNetworkCNN1)
     agent.load_model(load_model_path)
 
     # Train the agent

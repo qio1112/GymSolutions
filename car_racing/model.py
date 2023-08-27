@@ -8,7 +8,7 @@ class QNetworkCNN1(nn.Module):
         # input shape (batch_size, 3, 96, 96)
         # cnn_out_width = ((input_width - kernel_size + 2 * padding) / stride) + 1
         self.layer1 = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  # (batch_size, 16, 96, 96)
+            nn.Conv2d(3, 16, kernel_size=7, stride=1, padding=3),  # (batch_size, 16, 96, 96)
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),  # (batch_size, 16, 48, 48)
             nn.Dropout(p=0.05)
