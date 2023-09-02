@@ -169,7 +169,7 @@ class QAgent:
                 print(f"Terminating training with ma50={ma50}")
                 break
 
-            if save_model_episode and (episode + 1) > save_model_episode and (episode + 1) % save_model_episode == 0:
+            if save_model_episode and (episode + 1) >= save_model_episode and (episode + 1) % save_model_episode == 0:
                 draw_reward_history(reward_history)
                 save_model(self.target_network, self.config, {'reward': reward_history},
                            additional_path='epi=' + str(episode + 1))
