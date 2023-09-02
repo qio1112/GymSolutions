@@ -3,7 +3,7 @@ import torch.nn as nn
 import gymnasium as gym
 import os
 import datetime
-from rl_agent.PAgent import PAgent
+from rl_agent.p_agent import PAgent
 
 
 class LinearNetwork1(nn.Module):

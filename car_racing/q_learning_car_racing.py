@@ -2,8 +2,8 @@ import torch
 import gymnasium as gym
 import os
 from utils.utils import save_model
-from rl_agent.QAgent import QAgentCNN
-from model import QNetworkCNN1
+from rl_agent.q_agent_cnn import QAgentCNN
+from model import QNetworkCNN2
 import datetime
 
 
@@ -17,7 +17,6 @@ if __name__ == "__main__":
     env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False)
 
     # Set parameters
-    state_size = env.observation_space.shape
     action_size = env.action_space.n
 
     base_path = os.getcwd()
@@ -27,22 +26,29 @@ if __name__ == "__main__":
     config = {'path': path,
               'episodes': 1000,
               'max_steps': 2000,
-              'epsilon_start': 1,
-              'epsilon_end': 0.02,
-              'epsilon_decay': 0.996,
+              'grey': True,
+              'step_stack': 3,  # combine certain steps (images) together as a state
+              'lr': 0.002,
+              'epsilon_start': 1.0,
+              'epsilon_end': 0.01,
+              'epsilon_decay': 0.993,
               'gamma': 0.99,
-              'update_target_steps': 200,
+              'update_target_steps': 3000,  # update target network for every certain steps
               'terminate_at_reward_ma50': 230,
-              'buffer_size': 3000,
               'experience_replay': True,
-              'experience_replay_size': 300,
-              'batch_size': 32,
-              'save_model_episode': 10}
+              'skip_step': 2,  # skip certain steps without recording or learning
+              'buffer_size': 3000,
+              'batch_size': 64,
+              'stop_by_negative_count': 300,  # stop an episode if the count of negative reward steps reaches certain number
+              'burst_epsilon': 0.1,  # increase epsilon to this number if most of the recent episodes have negative return and the epsilon has reached epsilon_end
+              'save_model_episode': 100
+              }
 
     load_model_path = ''
 
     # Create the agent
-    agent = QAgentCNN(config, action_size, device, env, QNetworkCNN1)
+    agent = QAgentCNN(config, env, config.get("step_stack"), action_size,
+                      QNetworkCNN2, device)
     agent.load_model(load_model_path)
 
     # Train the agent

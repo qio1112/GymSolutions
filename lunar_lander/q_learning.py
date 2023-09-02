@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from utils.utils import save_model, draw_reward_history
-from rl_agent.QAgent import QAgent
+from rl_agent.q_agent import QAgent
 import os
 import datetime
 
@@ -49,21 +49,20 @@ if __name__ == "__main__":
               'max_steps': 2000,
               'epsilon_start': 1,
               'epsilon_end': 0.01,
-              'epsilon_decay': 0.996,
+              'epsilon_decay': 0.99,
               'gamma': 0.99,
-              'update_target_steps': 1,
-              'terminate_at_ma': 50,
-              'terminate_at_ma_reward': 230,
-              'buffer_size': 30000,
-              'experience_replay': True,
-              'experience_replay_size': 300,
+              'update_target_steps': 500,
+              'terminate_at_reward_ma50': 200,
+              'buffer_size': 1000,
               'batch_size': 32,
-              'save_model_episode': 20}
+              'burst_epsilon': 0.1,
+              'save_model_episode': None
+    }
 
     load_model_path = ''
 
     # Create the agent
-    agent = QAgent(config, env, state_size, action_size, QNetwork)
+    agent = QAgent(config, env, state_size, action_size, QNetwork, None)
     agent.load_model(load_model_path)
 
     # Train the agent
