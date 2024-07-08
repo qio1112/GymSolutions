@@ -4,15 +4,16 @@ import gymnasium as gym
 import os
 import datetime
 from rl_agent.p_agent import PAgent
+from utils.utils import get_device
 
 
 class LinearNetwork1(nn.Module):
     def __init__(self, state_size, action_size):
         super(LinearNetwork1, self).__init__()
-        self.fc1 = nn.Linear(state_size, 128)
-        self.fc2 = nn.Linear(128, 256)
-        self.fc3 = nn.Linear(256, 128)
-        self.fc4 = nn.Linear(128, action_size)
+        self.fc1 = nn.Linear(state_size, 64)
+        self.fc2 = nn.Linear(64, 128)
+        self.fc3 = nn.Linear(128, 64)
+        self.fc4 = nn.Linear(64, action_size)
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
@@ -49,28 +50,36 @@ if __name__ == "__main__":
         env.action_space.n if discrete else env.action_space.shape[0]
     )
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
+    print(f"Using device: {device}")
 
     base_path = os.getcwd()
     ts = str(datetime.datetime.now().timestamp()).split('.')[0]
     name = ts + "_policy_gradient_baseline"
     path = os.path.join(base_path, name)
     log_path = os.path.join(path, "log.txt")
-    load_model_path = "/Users/yipeng/Desktop/programs/python/GymSolutions/lunar_lander/1693171440_policy_gradient_baseline/model.pt"
+    # load_model_path = "/Users/yipeng/Desktop/programs/python/GymSolutions/lunar_lander/1693171440_policy_gradient_baseline/model.pt"
+    load_model_path = ""
+
     config = {
         "path": path,
         "log_path": log_path,
         "train": True,
         "use_baseline": True,
         "normalize_advantage": True,
-
+        "ppo": True,  # use proximal policy optimization
+        "ppo_clip_eps": 0.2,  # clip epsilon for ppo. this value is useless if 'ppo' is False
         "gamma": 0.99,
         "lr": 0.002,
-
         "num_batches": 330,
         "batch_size": 1000,
-        "max_ep_len": 2000
+        "max_ep_len": 2000,
+        "early_stop_reward": 220,  # early stop when average reward reaches this value. set to None or 0 to disable
+        "early_stop_ma": 50  # window size of moving average for early stop
     }
+
+    if config.get("ppo", False):
+        name += "_ppo"
 
     # NETWORK=1
     NETWORK = 2

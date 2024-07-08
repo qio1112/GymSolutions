@@ -7,7 +7,7 @@ import json
 
 
 def draw_reward_history(rewards, window_size=100, block=False):
-    ma = np.convolve(rewards, np.ones(window_size)/window_size, mode='valid')
+    ma = np.convolve(rewards, np.ones(window_size) / window_size, mode='valid')
     plt.ion()
     plt.close()
     plt.figure(figsize=(15, 4))
@@ -81,3 +81,12 @@ def draw_loss_accuracy_history(train_loss, test_loss, train_acc, test_acc, save_
     if save_path:
         plt.savefig(os.path.join(save_path, "loss_accuracy.png"))
     plt.show()
+
+
+def get_device():
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    return device

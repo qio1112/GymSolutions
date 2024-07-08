@@ -1,7 +1,7 @@
 import torch
 import gymnasium as gym
 import os
-from utils.utils import save_model
+from utils.utils import save_model, get_device
 from rl_agent.q_agent_cnn import QAgentCNN
 from model import QNetworkCNN2
 import datetime
@@ -9,12 +9,13 @@ import datetime
 
 if __name__ == "__main__":
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
+    device = torch.device(device)
     print(f"Device: {device}")
 
     # Create the LunarLander environment
-    # env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False, render_mode="human")
-    env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False)
+    env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False, render_mode="human")
+    # env = gym.make("CarRacing-v2", domain_randomize=False, continuous=False)
 
     # Set parameters
     action_size = env.action_space.n

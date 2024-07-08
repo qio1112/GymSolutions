@@ -37,39 +37,42 @@ class PAgent:
         self.batch_size = self.config.get("batch_size", 1)
         self.max_ep_len = self.config.get("max_ep_len", 2000)
         self.num_batches = self.config.get("num_batches", 300)
+        self.use_ppo = self.config.get("use_ppo", False)
+        self.ppo_clip_eps = self.config.get("ppo_clip_eps", 0.2)
+
         if self.use_baseline:
-            self.baseline_network = baseline_network
+            self.baseline_network = baseline_network.to(self.device)
             self.baseline_optim = torch.optim.Adam(self.baseline_network.parameters(), lr=self.lr)
-        self.policy_network = policy_network
+        self.policy_network = policy_network.to(self.device)
         self.policy_optim = torch.optim.Adam(self.policy_network.parameters(), lr=self.lr)
 
     def load_model(self, weights_path, baseline_weights_path=None):
         if weights_path:
-            self.policy_network.load_state_dict(torch.load(weights_path))
+            self.policy_network.load_state_dict(torch.load(weights_path)).to(self.device)
             print(f"Load policy model from {weights_path}")
         if baseline_weights_path:
-            self.baseline_network.load_state_dict(torch.load(weights_path))
+            self.baseline_network.load_state_dict(torch.load(weights_path)).to(self.device)
             print(f"Load baseline model from {weights_path}")
 
     def get_distribution(self, observations):
         if self.discrete:
-            return ptd.Categorical(torch.exp(self.policy_network(observations)))
+            return ptd.Categorical(torch.exp(self.policy_network(observations)))  # softmax
         else:  # continuous
             std = torch.exp(self.log_std)
             mean = self.policy_network(observations)
             covariance_matrix = torch.diag(std ** 2)
-            return ptd.MultivariateNormal(mean, covariance_matrix)
+            return ptd.MultivariateNormal(mean, covariance_matrix)  # Gaussian
 
     def get_returns(self, paths):
         all_returns = []
         for path in paths:
             rewards = path["reward"]
             returns = np.copy(rewards)
-            for t in reversed(range(rewards.shape[0]-1)):
-                returns[t] = rewards[t] + self.gamma * returns[t+1]
+            for t in reversed(range(rewards.shape[0] - 1)):
+                returns[t] = rewards[t] + self.gamma * returns[t + 1]
             all_returns.append(returns)
-        returns = np.concatenate(all_returns)
-        return np2torch(returns, device=self.device)
+        returns = np.concatenate(all_returns).astype(np.float32)
+        return torch.tensor(returns, dtype=torch.float).to(self.device)
 
     def get_advantages(self, returns, observations):
         if self.use_baseline:
@@ -81,12 +84,13 @@ class PAgent:
             advantages = (advantages - torch.mean(advantages)) / torch.std(advantages)
         return advantages
 
-    def act(self, observations):
-        observations = np2torch(observations, device=self.device)
-        distribution = self.get_distribution(observations)
-        sampled_actions = distribution.sample((observations.shape[0],))
-        # log_probs = distribution.log_prob(sampled_actions)
-        return sampled_actions
+    def act(self, state):
+        state = torch.tensor(state, dtype=torch.float).to(self.device)
+        distribution = self.get_distribution(state)
+        sampled_action = distribution.sample()
+        # this is the log_prob for the selected actions based on the current policy
+        log_prob = distribution.log_prob(sampled_action)
+        return sampled_action.squeeze(0), log_prob
 
     def sample_paths(self):
         episode = 0
@@ -97,14 +101,15 @@ class PAgent:
 
         while t < self.batch_size or (t >= self.batch_size and not last_ep_finished):
             state = self.env.reset()[0]
-            states, actions, rewards = [], [], []
+            states, actions, rewards, log_probs = [], [], [], []
             episode_reward = 0
 
             for step in range(self.max_ep_len):
                 states.append(state)
-                action = self.act(states[-1])[0]
+                action, log_prob = self.act(state)
                 state, reward, done, _, info = self.env.step(action.detach().cpu().numpy())
                 actions.append(action)
+                log_probs.append(log_prob)
                 rewards.append(reward)
                 episode_reward += reward
                 t += 1
@@ -116,7 +121,8 @@ class PAgent:
             path = {
                 "observation": np.array(states),
                 "reward": np.array(rewards),
-                "action": np.array(actions),
+                "action": torch.stack(actions),
+                "log_prob": torch.stack(log_probs)
             }
             paths.append(path)
             episode += 1
@@ -128,10 +134,20 @@ class PAgent:
         self.baseline_optim.zero_grad()
         loss.backward()
 
-    def train_policy(self, observations, actions, advantages):
+    def train_policy(self, observations, actions, advantages, old_log_probs):
+
         action_distribution = self.get_distribution(observations)
         log_probs = action_distribution.log_prob(actions)  # log_probs here are negative
-        loss = -torch.sum(advantages * log_probs)
+
+        if self.use_ppo:
+            # ratio = pi(a_t|s_t)/pi_old(a_t|s_t) = exp(log(pi(a_t|s_t) - log(pi_old(a_t|s_t)))
+            ratios = torch.exp(log_probs - old_log_probs)
+            value1 = ratios * advantages
+            value2 = torch.clamp(ratios, 1.0 - self.ppo_clip_eps, 1 + self.ppo_clip_eps) * advantages
+            loss = -torch.min(value1, value2).mean()
+        else:
+            loss = -torch.mean(advantages * log_probs)
+
         self.policy_optim.zero_grad()
         loss.backward()
         self.policy_optim.step()
@@ -148,9 +164,12 @@ class PAgent:
             # collect a minibatch of samples
             paths, total_rewards = self.sample_paths()  # (#episodes, ()), (#episodes,)
             all_total_rewards.extend(total_rewards)
-            observations = np2torch(np.concatenate([path["observation"] for path in paths]), device=self.device)  # (batch_size, *obs_space)
-            actions = np2torch(np.concatenate([path["action"] for path in paths]), device=self.device)  # (batch_size,)
-            rewards = np2torch(np.concatenate([path["reward"] for path in paths]), device=self.device)  # (batch_size,)
+            observations = torch.tensor(np.concatenate([path["observation"] for path in paths]), dtype=torch.float).to(
+                self.device)  # (batch_size, *obs_space)
+
+            actions = torch.cat([path["action"] for path in paths])
+            old_log_probs = torch.cat([path["log_prob"] for path in paths])
+
             # compute Q-val estimates (discounted future returns) for each time step
             returns = self.get_returns(paths)  # G_t (batch_size, 1)
 
@@ -161,7 +180,7 @@ class PAgent:
             if self.train_mode:
                 if self.use_baseline:
                     self.train_baseline(returns, observations)
-                self.train_policy(observations, actions, advantages)
+                self.train_policy(observations, actions, advantages, old_log_probs)
 
             # compute reward statistics for this batch and log
             avg_reward = np.mean(total_rewards)
@@ -172,13 +191,13 @@ class PAgent:
             averaged_total_rewards.append(avg_reward)
             self.logger.info(msg)
 
-            terminate_at_ma = self.config.get("terminate_at_ma")
-            if terminate_at_ma:
-                terminate_at_ma_reward = self.config.get("terminate_at_reward_ma_reward", 0)
-                last_history = all_total_rewards[-terminate_at_ma:]
+            early_stop_reward = self.config.get("early_stop_reward", 0)
+            if early_stop_reward > 0:
+                early_stop_ma = self.config.get("early_stop_ma", 50)
+                last_history = all_total_rewards[-early_stop_ma:]
                 ma = sum(last_history) / len(last_history)
-                if len(all_total_rewards) > terminate_at_ma and ma > terminate_at_ma_reward:
-                    print(f"Terminating training with ma{terminate_at_ma}={ma}")
+                if len(all_total_rewards) > early_stop_ma and ma > early_stop_reward:
+                    print(f"Terminating training with ma{early_stop_ma}={early_stop_reward}")
                     break
 
         self.logger.info("- Training done.")
@@ -186,30 +205,15 @@ class PAgent:
         save_model(self.policy_network, self.config, {"rewards": all_total_rewards})
 
 
-def np2torch(x, cast_double_to_float=True, device=torch.device("cpu")):
-    """
-    Utility function that accepts a numpy array and does the following:
-        1. Convert to torch tensor
-        2. Move it to the GPU (if CUDA is available)
-        3. Optionally casts float64 to float32 (torch is picky about types)
-    """
-    if isinstance(x, torch.Tensor):
-        return x
-    x = torch.from_numpy(x).to(device)
-    if cast_double_to_float and x.dtype is torch.float64:
-        x = x.float()
-    return x
-
-
 def get_logger(filename):
     """
     Return a logger instance to a file
     """
     logger = logging.getLogger("logger")
-    logger.setLevel(logging.DEBUG)
-    logging.basicConfig(format="%(message)s", level=logging.DEBUG)
+    logger.setLevel(logging.INFO)
+    logging.basicConfig(format="%(message)s", level=logging.INFO)
     handler = logging.FileHandler(filename)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s: %(message)s"))
     logging.getLogger().addHandler(handler)
     return logger
