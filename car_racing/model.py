@@ -1,10 +1,10 @@
 import torch.nn as nn
 
 
-class QNetworkCNN1(nn.Module):
+class CnnNetwork1(nn.Module):
 
     def __init__(self, action_size):
-        super(QNetworkCNN1, self).__init__()
+        super(CnnNetwork1, self).__init__()
         # input shape (batch_size, 3, 96, 96)
         # cnn_out_width = ((input_width - kernel_size + 2 * padding) / stride) + 1
         self.layer1 = nn.Sequential(
@@ -39,10 +39,10 @@ class QNetworkCNN1(nn.Module):
         return x
 
 
-class QNetworkCNN2(nn.Module):
+class CnnNetwork2(nn.Module):
 
     def __init__(self, input_channel, action_size):
-        super(QNetworkCNN2, self).__init__()
+        super(CnnNetwork2, self).__init__()
         # input shape (batch_size, 3, 96, 96)
         # cnn_out_width = ((input_width - kernel_size + 2 * padding) / stride) + 1
         self.layer1 = nn.Sequential(

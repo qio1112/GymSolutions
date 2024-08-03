@@ -3,7 +3,7 @@ import gymnasium as gym
 import os
 from utils.utils import save_model, get_device
 from rl_agent.q_agent_cnn import QAgentCNN
-from model import QNetworkCNN2
+from model import CnnNetwork2
 import datetime
 
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     # Create the agent
     agent = QAgentCNN(config, env, config.get("step_stack"), action_size,
-                      QNetworkCNN2, device)
+                      CnnNetwork2, device)
     agent.load_model(load_model_path)
 
     # Train the agent

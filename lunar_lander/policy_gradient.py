@@ -41,8 +41,16 @@ def build_mlp(input_size, output_size, n_layers, size, device):
 
 if __name__ == "__main__":
 
-    env = gym.make('LunarLander-v2')
-    # env = gym.make('LunarLander-v2', render_mode="human")
+    enable_wind = True
+
+    # env = gym.make('LunarLander-v2')
+    env = gym.make('LunarLander-v2',
+                   # render_mode="human",
+                   # gravity=-10.0,
+                   # enable_wind=enable_wind,
+                   # wind_power=15.0,
+                   # turbulence_power=1.5,
+                   )
 
     discrete = isinstance(env.action_space, gym.spaces.discrete.Discrete)
     observation_dim = env.observation_space.shape[0]
@@ -50,7 +58,8 @@ if __name__ == "__main__":
         env.action_space.n if discrete else env.action_space.shape[0]
     )
 
-    device = get_device()
+    # device = get_device()
+    device = "cpu"
     print(f"Using device: {device}")
 
     base_path = os.getcwd()
@@ -58,40 +67,33 @@ if __name__ == "__main__":
     name = ts + "_policy_gradient_baseline"
     path = os.path.join(base_path, name)
     log_path = os.path.join(path, "log.txt")
-    # load_model_path = "/Users/yipeng/Desktop/programs/python/GymSolutions/lunar_lander/1693171440_policy_gradient_baseline/model.pt"
     load_model_path = ""
 
     config = {
         "path": path,
         "log_path": log_path,
+        "discrete": True,
         "train": True,
         "use_baseline": True,
-        "normalize_advantage": True,
+        "normalize_advantage": False,
         "ppo": True,  # use proximal policy optimization
         "ppo_clip_eps": 0.2,  # clip epsilon for ppo. this value is useless if 'ppo' is False
         "gamma": 0.99,
-        "lr": 0.002,
-        "num_batches": 330,
-        "batch_size": 1000,
-        "max_ep_len": 2000,
-        "early_stop_reward": 220,  # early stop when average reward reaches this value. set to None or 0 to disable
+        "lr": 1e-3,
+        "num_batches": 1000,
+        "batch_size": 100,
+        "max_ep_len": 1000,
+        "early_stop_reward": 200,  # early stop when average reward reaches this value. set to None or 0 to disable
         "early_stop_ma": 50  # window size of moving average for early stop
     }
 
     if config.get("ppo", False):
         name += "_ppo"
+    if enable_wind:
+        name += "_wind"
 
-    # NETWORK=1
-    NETWORK = 2
-
-    # baseline_network = None
-    # policy_network = None
-    if NETWORK == 1:
-        baseline_network = build_mlp(observation_dim, 1, 2, 256, device)
-        policy_network = build_mlp(observation_dim, action_dim, 2, 256, device)
-    elif NETWORK == 2:
-        baseline_network = LinearNetwork1(observation_dim, 1)
-        policy_network = LinearNetwork1(observation_dim, action_dim)
+    baseline_network = LinearNetwork1(observation_dim, 1)
+    policy_network = LinearNetwork1(observation_dim, action_dim)
 
     p_agent = PAgent(config, env, policy_network, baseline_network, device)
     p_agent.load_model(load_model_path)
