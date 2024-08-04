@@ -148,9 +148,10 @@ class PAgent:
                         if not self.discrete:
                             mean, std = self.policy_network(states)
                             dist = ptd.Normal(mean, std)
+                            new_log_probs = dist.log_prob(actions).sum(1)  # sum on dim1 which sums all action dimensions
                         else:
                             dist = ptd.Categorical(torch.exp(self.policy_network(states)))  # softmax
-                        new_log_probs = dist.log_prob(actions).sum(1)  # sum on dim1 which sums all action dimensions
+                            new_log_probs = dist.log_prob(actions)  # sum on dim1 which sums all action dimensions
                         ratios = torch.exp(new_log_probs - log_probs.detach())
                         value1 = ratios * advantages
                         value2 = torch.clamp(ratios, 1.0 - self.ppo_clip_eps, 1.0 + self.ppo_clip_eps) * advantages
