@@ -84,7 +84,7 @@ if __name__ == "__main__":
     config = {
         "path": path,
         "log_path": log_path,
-        "param_std": False,  # if true, use nn.Parameter for std, else use a layer
+        "param_std": True,  # if true, use nn.Parameter for std, else use a layer
         "discrete": False,
         "train": True,
         "use_baseline": True,
