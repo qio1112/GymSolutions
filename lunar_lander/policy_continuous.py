@@ -8,10 +8,9 @@ from utils.utils import get_device
 
 
 class LinearNetwork(nn.Module):
-    def __init__(self, state_dimension, action_dimension, action_activation_functions=None, fixed_std=None):
+    def __init__(self, state_dimension, action_dimension, fixed_std=None):
         super(LinearNetwork, self).__init__()
         self.fixed_std = fixed_std
-        self.action_activation_functions = action_activation_functions
         self.fc1 = nn.Linear(state_dimension, 64)
         self.fc2 = nn.Linear(64, 128)
         self.fc3 = nn.Linear(128, 64)
@@ -88,8 +87,9 @@ if __name__ == "__main__":
         "train": True,
         "use_baseline": True,
         "normalize_advantage": True,
-        "ppo": False,  # use proximal policy optimization
+        "ppo": True,  # use proximal policy optimization
         "ppo_clip_eps": 0.2,  # clip epsilon for ppo. this value is useless if 'ppo' is False
+        "ppo_epochs": 4,
         "gamma": 0.99,
         "lr": 5e-4,
         "num_batches": 2000,  # number of sampling and train times
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     }
 
     # continuous action has 2 dimensions with range [-1, 1], so use tanh
-    policy_network = LinearNetwork(observation_dim, action_dim, (torch.tanh, torch.tanh), fixed_std=config.get("fixed_std", None))
+    policy_network = LinearNetwork(observation_dim, action_dim, fixed_std=config.get("fixed_std", None))
     baseline_network = LinearNetworkBaseline(observation_dim)
 
     p_agent = PAgent(config, env, policy_network, baseline_network, device)

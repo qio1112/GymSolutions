@@ -78,6 +78,7 @@ if __name__ == "__main__":
         "normalize_advantage": False,
         "ppo": True,  # use proximal policy optimization
         "ppo_clip_eps": 0.2,  # clip epsilon for ppo. this value is useless if 'ppo' is False
+        "ppo_epochs": 4,
         "gamma": 0.99,
         "lr": 1e-3,
         "num_batches": 1000,

@@ -15,7 +15,7 @@ from utils.utils import draw_reward_history, save_model
 class PAgent:
 
     def __init__(self, config, env, policy_network, baseline_network=None, device="cpu"):
-        torch.autograd.set_detect_anomaly(True)
+        # torch.autograd.set_detect_anomaly(True)
         self.config = config
         self.train_mode = self.config.get("train", True)
         self.device_name = device
@@ -38,9 +38,9 @@ class PAgent:
         self.batch_size = self.config.get("batch_size", 1)
         self.max_ep_len = self.config.get("max_ep_len", 2000)
         self.num_batches = self.config.get("num_batches", 300)
-        self.use_ppo = self.config.get("use_ppo", False)
+        self.use_ppo = self.config.get("ppo", False)
         self.ppo_clip_eps = self.config.get("ppo_clip_eps", 0.2)
-
+        self.ppo_epochs = self.config.get("ppo_epochs", 4)
         self.baseline_network = baseline_network.to(self.device)
         self.baseline_optim = torch.optim.Adam(self.baseline_network.parameters(), lr=self.lr)
         self.policy_network = policy_network.to(self.device)
@@ -66,15 +66,16 @@ class PAgent:
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if not self.discrete:
                 mean, std = self.policy_network(state_tensor)
-                dist = torch.distributions.Normal(mean, std)
+                dist = ptd.Normal(mean, std)
             else:
                 dist = ptd.Categorical(torch.exp(self.policy_network(state_tensor)))  # softmax
             action = dist.sample()
-            log_prob = dist.log_prob(action).sum()
+            log_prob = dist.log_prob(action).sum()  # sum for all action dimensions
             baseline = self.baseline_network(state_tensor)
 
             next_state, reward, done, _, _ = self.env.step(action.cpu().numpy()[0])
 
+            actions.append(action)
             log_probs.append(log_prob)
             baselines.append(baseline)
             rewards.append(reward)
@@ -91,6 +92,7 @@ class PAgent:
             G = reward + self.gamma * G
             returns.insert(0, G)
 
+        actions = torch.cat(actions).to(self.device)
         states = torch.FloatTensor(np.array(states)).to(self.device)
         returns = torch.FloatTensor(returns).to(self.device)
         baselines = torch.cat(baselines).squeeze().to(self.device)
@@ -98,15 +100,16 @@ class PAgent:
         advantages = returns - baselines
         if self.normalize_advantage:
             advantages = (advantages - torch.mean(advantages)) / torch.std(advantages)
-        return states, returns, baselines, log_probs, advantages, episode_reward
+        return actions, states, returns, baselines, log_probs, advantages, episode_reward
 
     def sample_paths(self):
         num_episodes = 0
         num_steps = 0
-        states_all, returns_all, baselines_all, log_probs_all, advantages_all, episode_rewards_all = [], [], [], [], [], []
+        actions_all, states_all, returns_all, baselines_all, log_probs_all, advantages_all, episode_rewards_all = [], [], [], [], [], [], []
 
         while num_steps < self.batch_size:
-            states, returns, baselines, log_probs, advantages, episode_reward = self.sample_episode()
+            actions, states, returns, baselines, log_probs, advantages, episode_reward = self.sample_episode()
+            actions_all.append(actions)
             states_all.append(states)
             returns_all.append(returns)
             baselines_all.append(baselines)
@@ -116,12 +119,13 @@ class PAgent:
             num_steps += states.shape[0]
             num_episodes += 1
 
+        actions_all = torch.cat(actions_all)
         states_all = torch.cat(states_all)
         returns_all = torch.cat(returns_all)
         baselines_all = torch.cat(baselines_all)
         log_probs_all = torch.cat(log_probs_all)
         advantages_all = torch.cat(advantages_all).detach()
-        return states_all, returns_all, baselines_all, log_probs_all, advantages_all, episode_rewards_all
+        return actions_all, states_all, returns_all, baselines_all, log_probs_all, advantages_all, episode_rewards_all
 
     def train(self):
         self.logger.info(f"start training. device: {self.device}")
@@ -132,23 +136,41 @@ class PAgent:
 
         for t in range(self.num_batches):
             # collect a minibatch of samples
-            states, returns, baselines, log_probs, advantages, episode_rewards = self.sample_paths()  # (#episodes, ()), (#episodes,)
+            actions, states, returns, baselines, log_probs, advantages, episode_rewards = self.sample_paths()  # (#episodes, ()), (#episodes,)
             all_total_rewards.extend(episode_rewards)
 
             # run training operations
             if self.train_mode:
-                # train policy
-                policy_loss = -(advantages * log_probs).mean()
-                self.policy_optim.zero_grad()
-                policy_loss.backward()
-                # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
-                self.policy_optim.step()
+                num_epochs = self.ppo_epochs if self.use_ppo else 1
+                for epoch in range(num_epochs):
+                    # train policy
+                    if self.use_ppo:
+                        if not self.discrete:
+                            mean, std = self.policy_network(states)
+                            dist = ptd.Normal(mean, std)
+                        else:
+                            dist = ptd.Categorical(torch.exp(self.policy_network(states)))  # softmax
+                        new_log_probs = dist.log_prob(actions).sum(1)  # sum on dim1 which sums all action dimensions
+                        ratios = torch.exp(new_log_probs - log_probs.detach())
+                        value1 = ratios * advantages
+                        value2 = torch.clamp(ratios, 1.0 - self.ppo_clip_eps, 1.0 + self.ppo_clip_eps) * advantages
+                        policy_loss = -torch.min(value1, value2).mean()
 
-                # train baseline
-                baseline_loss = torch.nn.MSELoss()(returns, baselines)
-                self.baseline_optim.zero_grad()
-                baseline_loss.backward()
-                self.baseline_optim.step()
+                        new_baselines = self.baseline_network(states).squeeze()
+                        baseline_loss = torch.nn.MSELoss()(returns, new_baselines)
+                    else:
+                        policy_loss = -(advantages * log_probs).mean()
+                        baseline_loss = torch.nn.MSELoss()(returns, baselines)
+
+                    self.policy_optim.zero_grad()
+                    policy_loss.backward()
+                    # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
+                    self.policy_optim.step()
+
+                    # train baseline
+                    self.baseline_optim.zero_grad()
+                    baseline_loss.backward()
+                    self.baseline_optim.step()
 
             # compute reward statistics for this batch and log
             avg_reward = np.mean(episode_rewards)
