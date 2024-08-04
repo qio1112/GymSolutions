@@ -81,7 +81,7 @@ if __name__ == "__main__":
         "gamma": 0.99,
         "lr": 1e-3,
         "num_batches": 1000,
-        "batch_size": 100,
+        "batch_size": 500,
         "max_ep_len": 1000,
         "early_stop_reward": 200,  # early stop when average reward reaches this value. set to None or 0 to disable
         "early_stop_ma": 50  # window size of moving average for early stop

@@ -34,7 +34,6 @@ class PAgent:
 
         self.gamma = self.config.get("gamma", 0.99)
         self.lr = self.config.get("learning_rate", 0.001)
-        self.use_baseline = self.config.get("use_baseline", True)
         self.normalize_advantage = self.config.get("normalize_advantage", True)
         self.batch_size = self.config.get("batch_size", 1)
         self.max_ep_len = self.config.get("max_ep_len", 2000)
@@ -42,9 +41,8 @@ class PAgent:
         self.use_ppo = self.config.get("use_ppo", False)
         self.ppo_clip_eps = self.config.get("ppo_clip_eps", 0.2)
 
-        if self.use_baseline:
-            self.baseline_network = baseline_network.to(self.device)
-            self.baseline_optim = torch.optim.Adam(self.baseline_network.parameters(), lr=self.lr)
+        self.baseline_network = baseline_network.to(self.device)
+        self.baseline_optim = torch.optim.Adam(self.baseline_network.parameters(), lr=self.lr)
         self.policy_network = policy_network.to(self.device)
         self.policy_optim = torch.optim.Adam(self.policy_network.parameters(), lr=self.lr, weight_decay=1e-4)
 
@@ -58,141 +56,72 @@ class PAgent:
             self.baseline_network.to(self.device)
             print(f"Load baseline model from {weights_path}")
 
-    def get_distribution(self, observations):
-        if self.discrete:
-            return ptd.Categorical(torch.exp(self.policy_network(observations)))  # softmax
-        else:  # continuous
-            mean, std = self.policy_network(observations)
-            # if self.device_name == "mps":
-                # mac mps doesn't support MultivariateNormal
-            if mean.dim() == 1:
-                dists = [ptd.Normal(mean[i], std[i]) for i in range(self.action_dim)]
-                return dists
-            else:  # batched
-                dists = [ptd.Normal(mean[:, i], std[:, i]) for i in range(self.action_dim)]
-                return dists
-            # else:
-            #     covariance_matrix = torch.diag(std ** 2)
-            #     return ptd.MultivariateNormal(mean, covariance_matrix)  # Gaussian
+    def sample_episode(self):
+        state = self.env.reset()[0]
+        states, actions, rewards, log_probs, baselines = [], [], [], [], []
+        episode_reward = 0  # this is used for loggind and show the progress
 
-    def get_returns(self, paths):
-        all_returns = []
-        for path in paths:
-            rewards = path["reward"]
-            returns = np.copy(rewards)
-            for t in reversed(range(rewards.shape[0] - 1)):
-                returns[t] = rewards[t] + self.gamma * returns[t + 1]
-            all_returns.append(returns)
-        returns = np.concatenate(all_returns).astype(np.float32)
-        return torch.tensor(returns, dtype=torch.float).to(self.device)
+        while True:
+            states.append(state)
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            if not self.discrete:
+                mean, std = self.policy_network(state_tensor)
+                dist = torch.distributions.Normal(mean, std)
+            else:
+                dist = ptd.Categorical(torch.exp(self.policy_network(state_tensor)))  # softmax
+            action = dist.sample()
+            log_prob = dist.log_prob(action).sum()
+            baseline = self.baseline_network(state_tensor)
 
-    def get_advantages(self, returns, observations):
-        if self.use_baseline:
-            baselines = self.baseline_network(observations).squeeze()
-            advantages = returns - baselines
-        else:
-            advantages = returns
+            next_state, reward, done, _, _ = self.env.step(action.cpu().numpy()[0])
+
+            log_probs.append(log_prob)
+            baselines.append(baseline)
+            rewards.append(reward)
+
+            state = next_state
+            episode_reward = episode_reward + reward
+
+            if done or len(rewards) >= self.max_ep_len:
+                break
+
+        returns = []
+        G = 0
+        for reward in reversed(rewards):
+            G = reward + self.gamma * G
+            returns.insert(0, G)
+
+        states = torch.FloatTensor(np.array(states)).to(self.device)
+        returns = torch.FloatTensor(returns).to(self.device)
+        baselines = torch.cat(baselines).squeeze().to(self.device)
+        log_probs = torch.stack(log_probs).to(self.device)
+        advantages = returns - baselines
         if self.normalize_advantage:
             advantages = (advantages - torch.mean(advantages)) / torch.std(advantages)
-        return advantages
-
-    def act(self, state):
-        state = torch.tensor(state, dtype=torch.float).to(self.device)
-        distribution = self.get_distribution(state)
-
-        if isinstance(distribution, list):  # multiple Normal distributions
-            sampled_action_list = [dist.sample() for dist in distribution]
-            sampled_action = torch.stack(sampled_action_list, dim=-1)  # this action is before applying limits such as tanh
-            if not self.discrete:
-                sampled_action = self.policy_network.apply_action_limit(sampled_action)
-            log_prob = self.get_log_prob(distribution, sampled_action)
-        else:
-            sampled_action = distribution.sample()
-            # this is the log_prob for the selected actions based on the current policy
-            log_prob = distribution.log_prob(sampled_action)
-        return sampled_action.squeeze(0), log_prob
+        return states, returns, baselines, log_probs, advantages, episode_reward
 
     def sample_paths(self):
-        episode = 0
-        episode_rewards = []
-        paths = []
-        t = 0
-        last_ep_finished = False  # stop when last episode finishes, use to prevent having half an episode
+        num_episodes = 0
+        num_steps = 0
+        states_all, returns_all, baselines_all, log_probs_all, advantages_all, episode_rewards_all = [], [], [], [], [], []
 
-        while t < self.batch_size or (t >= self.batch_size and not last_ep_finished):
-            state = self.env.reset()[0]
-            states, actions, rewards, log_probs = [], [], [], []
-            episode_reward = 0
+        while num_steps < self.batch_size:
+            states, returns, baselines, log_probs, advantages, episode_reward = self.sample_episode()
+            states_all.append(states)
+            returns_all.append(returns)
+            baselines_all.append(baselines)
+            log_probs_all.append(log_probs)
+            advantages_all.append(advantages)
+            episode_rewards_all.append(episode_reward)
+            num_steps += states.shape[0]
+            num_episodes += 1
 
-            for step in range(self.max_ep_len):
-                states.append(state)
-                action, log_prob = self.act(state)
-                actual_action = action
-                # if not self.discrete:
-                #     limited_action = self.policy_network.apply_action_limit(action)
-                #     actual_action = limited_action
-                state, reward, done, _, info = self.env.step(actual_action.detach().cpu().numpy())
-                actions.append(action)
-                log_probs.append(log_prob)
-                rewards.append(reward)
-                episode_reward = episode_reward + reward
-                t = t + 1
-                if done or step == self.max_ep_len - 1:
-                    episode_rewards.append(episode_reward)
-                    last_ep_finished = t >= (self.batch_size - 1)
-                    break
-
-            path = {
-                "observation": np.array(states),
-                "reward": np.array(rewards),
-                "action": torch.stack(actions),
-                "log_prob": torch.stack(log_probs)
-            }
-            paths.append(path)
-            episode += 1
-
-        return paths, episode_rewards
-
-    def get_log_prob(self, distribution, actions):
-        log_probs = []
-        if isinstance(distribution, list):
-            for i, dist in enumerate(distribution):
-                # Calculate the log probability for the i-th action component
-                if actions.dim() == 1:
-                    log_prob = dist.log_prob(actions[i])
-                else:  # batched
-                    log_prob = dist.log_prob(actions[:, i])
-                log_probs.append(log_prob)
-            total_log_prob = torch.sum(torch.stack(log_probs), dim=0)
-            return total_log_prob
-        else:
-            return distribution.log_prob(actions)
-
-    def train_baseline(self, returns, observations):
-        baselines = self.baseline_network(observations).squeeze()
-        loss = torch.nn.MSELoss()(returns, baselines)
-        self.baseline_optim.zero_grad()
-        loss.backward()
-        self.baseline_optim.step()
-
-    def train_policy(self, observations, actions, advantages, old_log_probs):
-
-        action_distribution = self.get_distribution(observations)
-        log_probs = self.get_log_prob(action_distribution, actions)  # log_probs here are negative
-
-        if self.use_ppo:
-            # ratio = pi(a_t|s_t)/pi_old(a_t|s_t) = exp(log(pi(a_t|s_t) - log(pi_old(a_t|s_t)))
-            ratios = torch.exp(log_probs - old_log_probs)
-            value1 = ratios * advantages
-            value2 = torch.clamp(ratios, 1.0 - self.ppo_clip_eps, 1.0 + self.ppo_clip_eps) * advantages
-            loss = -torch.min(value1, value2).mean()
-        else:
-            loss = -torch.mean(advantages * log_probs)
-
-        self.policy_optim.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
-        self.policy_optim.step()
+        states_all = torch.cat(states_all)
+        returns_all = torch.cat(returns_all)
+        baselines_all = torch.cat(baselines_all)
+        log_probs_all = torch.cat(log_probs_all)
+        advantages_all = torch.cat(advantages_all).detach()
+        return states_all, returns_all, baselines_all, log_probs_all, advantages_all, episode_rewards_all
 
     def train(self):
         self.logger.info(f"start training. device: {self.device}")
@@ -202,33 +131,30 @@ class PAgent:
         averaged_total_rewards = []  # the returns for each iteration
 
         for t in range(self.num_batches):
-
             # collect a minibatch of samples
-            paths, total_rewards = self.sample_paths()  # (#episodes, ()), (#episodes,)
-            all_total_rewards.extend(total_rewards)
-            observations = torch.tensor(np.concatenate([path["observation"] for path in paths]), dtype=torch.float).to(
-                self.device)  # (batch_size, *obs_space)
-
-            actions = torch.cat([path["action"] for path in paths])
-            old_log_probs = torch.cat([path["log_prob"] for path in paths])
-
-            # compute Q-val estimates (discounted future returns) for each time step
-            returns = self.get_returns(paths)  # G_t (batch_size, 1)
-
-            # advantage will depend on the baseline implementation
-            advantages = self.get_advantages(returns, observations)  # (batch_size,)
+            states, returns, baselines, log_probs, advantages, episode_rewards = self.sample_paths()  # (#episodes, ()), (#episodes,)
+            all_total_rewards.extend(episode_rewards)
 
             # run training operations
             if self.train_mode:
-                self.train_policy(observations, actions, advantages, old_log_probs)
-                if self.use_baseline:
-                    self.train_baseline(returns, observations)
+                # train policy
+                policy_loss = -(advantages * log_probs).mean()
+                self.policy_optim.zero_grad()
+                policy_loss.backward()
+                # torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), max_norm=1.0)
+                self.policy_optim.step()
+
+                # train baseline
+                baseline_loss = torch.nn.MSELoss()(returns, baselines)
+                self.baseline_optim.zero_grad()
+                baseline_loss.backward()
+                self.baseline_optim.step()
 
             # compute reward statistics for this batch and log
-            avg_reward = np.mean(total_rewards)
-            sigma_reward = np.sqrt(np.var(total_rewards) / len(total_rewards))
+            avg_reward = np.mean(episode_rewards)
+            sigma_reward = np.sqrt(np.var(episode_rewards) / len(episode_rewards))
             msg = "[ITERATION {}]: Average reward: {:04.2f} +/- {:04.2f}, #epi={}, batch_size={}".format(
-                t, avg_reward, sigma_reward, len(paths), len(observations)
+                t, avg_reward, sigma_reward, len(episode_rewards), len(returns)
             )
             averaged_total_rewards.append(avg_reward)
             self.logger.info(msg)
