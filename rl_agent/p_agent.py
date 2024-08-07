@@ -41,6 +41,8 @@ class PAgent:
         self.use_ppo = self.config.get("ppo", False)
         self.ppo_clip_eps = self.config.get("ppo_clip_eps", 0.2)
         self.ppo_epochs = self.config.get("ppo_epochs", 4)
+        self.sample_stack_size = self.config.get("sample_stack_size", 1)
+        self.sample_skip = self.config.get("sample_skip", 0)
         self.baseline_network = baseline_network.to(self.device)
         self.baseline_optim = torch.optim.Adam(self.baseline_network.parameters(), lr=self.lr)
         self.policy_network = policy_network.to(self.device)
@@ -60,9 +62,9 @@ class PAgent:
         state = self.env.reset()[0]
         states, actions, rewards, log_probs, baselines = [], [], [], [], []
         episode_reward = 0  # this is used for loggind and show the progress
+        skip_step_count = 1
 
         while True:
-            states.append(state)
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if not self.discrete:
                 mean, std = self.policy_network(state_tensor)
@@ -75,10 +77,15 @@ class PAgent:
 
             next_state, reward, done, _, _ = self.env.step(action.cpu().numpy()[0])
 
-            actions.append(action)
-            log_probs.append(log_prob)
-            baselines.append(baseline)
-            rewards.append(reward)
+            if self.sample_skip <= 0 or skip_step_count > self.sample_skip:
+                skip_step_count = 0
+                states.append(state)
+                actions.append(action)
+                log_probs.append(log_prob)
+                baselines.append(baseline)
+                rewards.append(reward)
+
+            skip_step_count += 1
 
             state = next_state
             episode_reward = episode_reward + reward
