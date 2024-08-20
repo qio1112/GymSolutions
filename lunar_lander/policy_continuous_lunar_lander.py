@@ -92,10 +92,12 @@ if __name__ == "__main__":
         "ppo": True,  # use proximal policy optimization
         "ppo_clip_eps": 0.2,  # clip epsilon for ppo. this value is useless if 'ppo' is False
         "ppo_epochs": 4,
+        "ppo_mini_batch_size": 100,
+        "actor_critic": True,
         "gamma": 0.99,
-        "lr": 1e-3,
+        "lr": 1e-4,
         "num_batches": 3000,  # number of sampling and train times
-        "batch_size": 500,  # steps in each batch, the last episode may exceed this size
+        "batch_size": 100,  # steps in each batch, the last episode may exceed this size
         "max_ep_len": 3000,  # max length of each episode
         "early_stop_reward": 200,  # early stop when average reward reaches this value. set to None or 0 to disable
         "early_stop_ma": 50  # window size of moving average for early stop
